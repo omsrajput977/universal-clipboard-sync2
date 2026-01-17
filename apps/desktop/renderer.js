@@ -5,8 +5,12 @@ import { ClipboardEngine } from "./core/ClipboardEngine.js";
 import { SignalingClient } from "./network/SignalingClient.js";
 import { WebRTCManager } from "./network/WebRTCManager.js";
 import { ClipboardItem } from "../../shared/clipboardModels.js";
+import { ClipboardAdapter } from "./os-adapter/ClipboardAdapter.js";
+
 
 const DEVICE_ID = window.location.hash.replace("#", "");
+const clipboardAdapter = new ClipboardAdapter();
+
 
 if (!DEVICE_ID) {
   console.error("❌ No DEVICE_ID provided");
@@ -41,7 +45,11 @@ rtcManager = new WebRTCManager(
   (data) => {
     if (data.type === "CLIPBOARD_UPDATE") {
       clipboardEngine.onRemoteClipboardUpdate(data.payload);
-      console.log("📋 Clipboard updated from peer:", data.payload);
+      clipboardEngine.applyToSystemClipboard(
+        clipboardAdapter,
+        data.payload
+      );
+      console.log("📋 Clipboard updated from peer:", data.payload.content);
     }
   }
 );
@@ -54,14 +62,35 @@ setTimeout(() => {
 }, 2000);
 
 // 5️⃣ Fake clipboard update after 5s
-setTimeout(() => {
-  const item = new ClipboardItem({
-    id: Date.now().toString(),
-    type: "text",
-    content: `Hello from ${DEVICE_ID}`,
-    sourceDeviceId: DEVICE_ID,
-    timestamp: Date.now()
-  });
+// setTimeout(() => {
+//   const item = new ClipboardItem({
+//     id: Date.now().toString(),
+//     type: "text",
+//     content: `Hello from ${DEVICE_ID}`,
+//     sourceDeviceId: DEVICE_ID,
+//     timestamp: Date.now()
+//   });
 
-  clipboardEngine.onLocalClipboardUpdate(item);
-}, 5000);
+//   clipboardEngine.onLocalClipboardUpdate(item);
+// }, 5000);
+
+let lastClipboardText = "";
+
+setInterval(() => {
+  const currentText = clipboardAdapter.readText();
+
+  if (currentText && currentText !== lastClipboardText) {
+    lastClipboardText = currentText;
+
+    const item = new ClipboardItem({
+      id: Date.now().toString(),
+      type: "text",
+      content: currentText,
+      sourceDeviceId: DEVICE_ID,
+      timestamp: Date.now()
+    });
+
+    console.log("✂️ Local clipboard changed:", currentText);
+    clipboardEngine.onLocalClipboardUpdate(item);
+  }
+}, 500);
