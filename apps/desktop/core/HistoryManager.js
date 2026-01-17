@@ -1,19 +1,26 @@
-// apps/desktop/core/HistoryManager.js
-
 export class HistoryManager {
   constructor() {
-    this.history = [];
+    this.items = [];
   }
 
   add(item) {
-    this.history.push(item);
+    if (!this.items) {
+      this.items = [];
+    }
+    this.items.push(item);
   }
 
   getAll() {
-    return this.history;
+    if (!this.items) {
+      this.items = [];
+    }
+    return this.items;
   }
 
-  clear() {
-    this.history = [];
+  getLast() {
+    if (!this.items || this.items.length === 0) {
+      return null;
+    }
+    return this.items[this.items.length - 1];
   }
 }

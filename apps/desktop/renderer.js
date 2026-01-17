@@ -6,10 +6,14 @@ import { SignalingClient } from "./network/SignalingClient.js";
 import { WebRTCManager } from "./network/WebRTCManager.js";
 import { ClipboardItem } from "../../shared/clipboardModels.js";
 import { ClipboardAdapter } from "./os-adapter/ClipboardAdapter.js";
+import { ClipboardHistoryView } from "./ui/ClipboardHistoryView.js";
+
 
 
 const DEVICE_ID = window.location.hash.replace("#", "");
 const clipboardAdapter = new ClipboardAdapter();
+let isApplyingRemoteClipboard = false;
+
 
 
 if (!DEVICE_ID) {
@@ -38,17 +42,41 @@ const clipboardEngine = new ClipboardEngine(
   }
 );
 
+const historyContainer = document.getElementById("history");
+
+const historyView = new ClipboardHistoryView(
+  historyContainer,
+  (item) => {
+    clipboardAdapter.writeText(item.content);
+    console.log("📌 Copied from history:", item.content);
+  }
+);
+
+
 // 3️⃣ Create WebRTC Manager
 rtcManager = new WebRTCManager(
   signalingClient,
   DEVICE_ID,
   (data) => {
     if (data.type === "CLIPBOARD_UPDATE") {
+      console.log("📦 Incoming clipboard payload:", data.payload);
       clipboardEngine.onRemoteClipboardUpdate(data.payload);
+      isApplyingRemoteClipboard = true;
+
       clipboardEngine.applyToSystemClipboard(
         clipboardAdapter,
         data.payload
       );
+
+      // small delay to allow clipboard to settle
+      setTimeout(() => {
+        isApplyingRemoteClipboard = false;
+      }, 300);
+
+      historyView.render(
+        clipboardEngine.historyManager.getAll()
+      );
+
       console.log("📋 Clipboard updated from peer:", data.payload.content);
     }
   }
@@ -79,7 +107,10 @@ let lastClipboardText = "";
 setInterval(() => {
   const currentText = clipboardAdapter.readText();
 
-  if (currentText && currentText !== lastClipboardText) {
+  if ( !isApplyingRemoteClipboard &&
+  currentText &&
+  currentText !== lastClipboardText &&
+  currentText.trim() !== "") {
     lastClipboardText = currentText;
 
     const item = new ClipboardItem({
@@ -92,5 +123,9 @@ setInterval(() => {
 
     console.log("✂️ Local clipboard changed:", currentText);
     clipboardEngine.onLocalClipboardUpdate(item);
+    historyView.render(
+      clipboardEngine.historyManager.getAll()
+    );
+
   }
 }, 500);
